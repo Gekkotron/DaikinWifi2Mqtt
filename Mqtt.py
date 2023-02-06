@@ -1,4 +1,4 @@
-import paho.mqtt.publish as publish
+from paho.mqtt import publish
 import paho.mqtt.client as mqtt
 import config
 import json
@@ -7,7 +7,7 @@ from Events import Events
 
 ENALE_LOGGING = True
 
-
+# pylint: disable=unused-argument
 class Mqtt:
     def __init__(self):
         self.client = None
@@ -16,7 +16,13 @@ class Mqtt:
 
         @broker.on(config.MQTT_GATEWAY_PUBLISH_TOPIC)
         def controlResult(payload):
-            self.publish(payload["topic"], payload["response"])
+            if payload["response"] is not None:
+                self.publish(payload["topic"], payload["response"])
+
+        @broker.on(config.MQTT_GATEWAY_ERROR_CMD)
+        def sendError(payload):
+            if payload["error"] is not None:
+                self.publish(payload["topic"], payload["error"])
 
     # Begin the program
     def on_connect(self, client, userdata, flags, reasonCode):
@@ -29,7 +35,6 @@ class Mqtt:
     def on_message(self, client, userdata, msg):
         if(ENALE_LOGGING):
             Logger().info(f"Mqtt : on_message: {msg.topic} -> {msg.payload}")
-        payload_decoded = msg.payload.decode('utf-8').replace("\"", "")
         payload = json.loads(msg.payload)
         payload["topic"] = msg.topic
         Events().broker.emit(config.MQTT_GATEWAY_MESSAGE, payload)
@@ -66,7 +71,7 @@ class Mqtt:
     def publish(self, cmd, data):
         try:
             self.publish_event(cmd, data)
-        except OSError:
-            Logger().info("Mqtt : OSError")
         except ConnectionRefusedError:
             Logger().info("Mqtt : ConnectionRefusedError")
+        except OSError:
+            Logger().info("Mqtt : OSError")

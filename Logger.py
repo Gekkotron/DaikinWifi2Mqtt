@@ -1,11 +1,9 @@
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import os
-import config
 import http.server
 from socketserver import TCPServer
 import threading
-import time
 
 
 def singleton(cls):
@@ -69,9 +67,6 @@ class Logger():
 
     def info(self, msg):
         self.logger.info(msg)
-
-    def warn(self, msg):
-        self.logger.warn(msg)
 
     def error(self, msg):
         self.logger.error(msg)

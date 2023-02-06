@@ -3,30 +3,63 @@ from Logger import Logger
 import urllib.parse
 from Events import Events
 import json
-
+import threading
 import requests
 
 
 class Daikin:
     def __init__(self):
         broker = Events().broker
+        self.t = None
+
+        @broker.on(config.MQTT_GATEWAY_MESSAGE)
+        def message(data):
+            topic = data["topic"].split("/")
+            host = topic[1]
+            cmd = topic[2]
+            data["host"] = host
+
+            if("control" in cmd):
+                response = self._control_set(data)
+                Events().broker.emit(config.MQTT_GATEWAY_PUBLISH_TOPIC, {"topic": "daikin/"+host+"/data", "response": response})
+            if("refresh" in cmd):
+                response = self._get_control(host)
+                Events().broker.emit(config.MQTT_GATEWAY_PUBLISH_TOPIC, {"topic": "daikin/"+host+"/data", "response": response})
+                result = self.get_sensor(host)
+                Events().broker.emit(config.MQTT_GATEWAY_PUBLISH_TOPIC, {"topic": "daikin/"+host+"/sensor", "response": result})
+            if("powerful" in cmd):
+                status = data["status"]
+                if("duration" in data):
+                    duration = data["duration"]
+                    if(self.t is not None):
+                       self.t.cancel()
+                    self.t = threading.Timer(duration, launchPowerfulMode, [host, 0])
+                    self.t.start()
+                launchPowerfulMode(host, status)
+
+        def launchPowerfulMode(host, status):
+            self.powerfulMode(host, status)
+            response = self._get_control(host)
+            Events().broker.emit(config.MQTT_GATEWAY_PUBLISH_TOPIC, {"topic": "daikin/"+host+"/data", "response": response})
 
         @broker.on(config.MQTT_GATEWAY_CONTROL_CMD)
         def control(data):
             response = self._control_set(data)
-            Events().broker.emit(config.MQTT_GATEWAY_PUBLISH_TOPIC, {"topic": config.MQTT_GATEWAY_CONTROL_RESULT, "response": response})
+            Events().broker.emit(config.MQTT_GATEWAY_PUBLISH_TOPIC, {"topic": config.MQTT_GATEWAY_REFRESH_DATA, "response": response})
 
         @broker.on(config.MQTT_GATEWAY_REFRESH_CMD)
         def refresh(payload):
             host = payload["host"]
             response = self._get_control(host)
             Events().broker.emit(config.MQTT_GATEWAY_PUBLISH_TOPIC, {"topic": config.MQTT_GATEWAY_REFRESH_DATA, "response": response})
+            result = self.get_sensor(host)
+            Events().broker.emit(config.MQTT_GATEWAY_PUBLISH_TOPIC, {"topic": config.MQTT_GATEWAY_REFRESH_SENSOR, "response": result})
 
     def _get(self, host, path):
         """ Internal function to connect to and get any information"""
         fields = {}
         try:
-            response = requests.get(host + path)
+            response = requests.get("http://" + host + path)
             response.raise_for_status()
             if not len(response.text) > 0 or not response.text[0:4] == "ret=":
                 return None
@@ -45,7 +78,8 @@ class Daikin:
     def _set(self, host, path, data):
         """ Internal function to connect to and update information"""
         try:
-            response = requests.get(host + path, data)
+            print("SET : " + host + path + str(data))
+            response = requests.get("http://" + host + path, data)
             response.raise_for_status()
             return response.json
         except requests.exceptions.RequestException as e:  # This is the correct syntax
@@ -191,3 +225,9 @@ class Daikin:
         data[payload["key"]] = payload["value"]
         self._set(host, "/aircon/set_control_info", data)
         return data
+
+    def powerfulMode(self, host, status):
+        data={}
+        data["spmode_kind"] = 1
+        data["set_spmode"] = status
+        self._set(host, f"/aircon/set_special_mode", data)

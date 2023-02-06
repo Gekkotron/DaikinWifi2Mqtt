@@ -30,7 +30,9 @@ class Mqtt:
         if(ENALE_LOGGING):
             Logger().info(f"Mqtt : on_message: {msg.topic} -> {msg.payload}")
         payload_decoded = msg.payload.decode('utf-8').replace("\"", "")
-        Events().broker.emit(msg.topic, json.loads(msg.payload))
+        payload = json.loads(msg.payload)
+        payload["topic"] = msg.topic
+        Events().broker.emit(config.MQTT_GATEWAY_MESSAGE, payload)
 
     def on_log(self, client, userdata, level, buf):
         if(ENALE_LOGGING):

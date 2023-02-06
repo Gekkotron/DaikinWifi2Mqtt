@@ -13,15 +13,13 @@ def app():
     mqtt.connect()
     mqtt.loop_start()
 
-    mqtt.update_status(config.MQTT_GATEWAY_STATUS_START)
-    mqtt.publish(config.MQTT_GATEWAY_ERROR_CMD, "")
+    #mqtt.update_status(config.MQTT_GATEWAY_STATUS_START)
+    #mqtt.publish(config.MQTT_GATEWAY_ERROR_CMD, "")
 
     while True:
         time.sleep(0.1)
 
-    mqtt.update_status(config.MQTT_GATEWAY_STATUS_QUIT)
-    mqtt.send_playing_data()
-    mqtt.send_total_time()
+    #mqtt.update_status(config.MQTT_GATEWAY_STATUS_QUIT)
     mqtt.loop_stop()
 
 

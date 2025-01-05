@@ -39,7 +39,7 @@ class Mqtt:
             Logger().info(f"Mqtt : on_log: {buf}")
 
     def connect(self):
-        self.client = mqtt.Client("Daikin gateway")
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, "Daikin gateway")
         self.client.on_message = self.on_message
         self.client.on_connect = self.on_connect
         # self.client.on_log = self.on_log

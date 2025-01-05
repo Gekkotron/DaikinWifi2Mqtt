@@ -223,11 +223,14 @@ class Daikin:
         host = payload["host"]
         data = self._get_control(host)
         data[payload["key"]] = payload["value"]
+
         if payload["value"] == "6":
             data["stemp"] = "0"
-        elif data["stemp"] == "0":
+        elif data["stemp"] == "--":
             # If the current setpoint is 0, set it at default
             data["stemp"] = 18
+            data["shum"] = 0
+            print("Update to default value")
         self._set(host, "/aircon/set_control_info", data)
         return data
 

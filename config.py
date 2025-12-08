@@ -1,4 +1,4 @@
-MQTT_HOST = "localhost"
+MQTT_HOST = "192.168.1.91"
 MQTT_PORT = 1883
 
 MQTT_GATEWAY_BASE_TOPIC = "daikin/"

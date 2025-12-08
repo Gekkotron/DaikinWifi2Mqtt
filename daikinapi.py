@@ -23,10 +23,12 @@ class Daikin:
                 response = self._control_set(data)
                 Events().broker.emit(config.MQTT_GATEWAY_PUBLISH_TOPIC, {"topic": "daikin/"+host+"/data", "response": response})
             if("refresh" in cmd):
-                response = self._get_control(host)
-                Events().broker.emit(config.MQTT_GATEWAY_PUBLISH_TOPIC, {"topic": "daikin/"+host+"/data", "response": response})
+                result = self._get_control(host)
+                Events().broker.emit(config.MQTT_GATEWAY_PUBLISH_TOPIC, {"topic": "daikin/"+host+"/data", "response": result})
                 result = self.get_sensor(host)
                 Events().broker.emit(config.MQTT_GATEWAY_PUBLISH_TOPIC, {"topic": "daikin/"+host+"/sensor", "response": result})
+                result = self.get_basic(host)
+                Events().broker.emit(config.MQTT_GATEWAY_PUBLISH_TOPIC, {"topic": "daikin/"+host+"/status", "response": result})
             if("powerful" in cmd):
                 status = data["status"]
                 if("duration" in data):

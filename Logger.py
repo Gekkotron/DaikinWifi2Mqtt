@@ -9,19 +9,29 @@ import time
 
 
 def singleton(cls):
-    instance = None
+    instances = {}
+    lock = threading.Lock()
 
     def ctor(*args, **kwargs):
-        nonlocal instance
-        if not instance:
-            instance = cls(*args, **kwargs)
-        return instance
+        if cls not in instances:
+            with lock:
+                # Double-check pattern to avoid race condition
+                if cls not in instances:
+                    instances[cls] = cls(*args, **kwargs)
+        return instances[cls]
     return ctor
 
 
 @singleton
 class Logger():
     def __init__(self):
+        import sys
+        import traceback
+        print(f"\n[DEBUG] ===== Logger.__init__() called =====", file=sys.stderr, flush=True)
+        print(f"[DEBUG] Call stack:", file=sys.stderr, flush=True)
+        for line in traceback.format_stack()[:-1]:
+            print(line.strip(), file=sys.stderr, flush=True)
+
         directory = "logs"
         filename = "Daikin"
         if not os.path.exists(directory):
@@ -35,39 +45,39 @@ class Logger():
 
         # create logger
         self.logger = logging.getLogger("logging")
+        print(f"[DEBUG] Logger ID: {id(self.logger)}, Current handlers: {len(self.logger.handlers)}", file=sys.stderr, flush=True)
         self.logger.setLevel(logging.DEBUG)
 
         # Disable auto log in console
         self.logger.propagate = False
 
-        # create rotating file handler
+        # Clear any existing handlers to prevent duplicates
+        self.logger.handlers.clear()
+        print(f"[DEBUG] After clear: {len(self.logger.handlers)} handlers", file=sys.stderr, flush=True)
+
         fileHandler = TimedRotatingFileHandler(path, when="d", interval=4)
         fileHandler.suffix = "_%Y-%m-%d_%H-%M-%S.log"
         if should_roll_over:  # log already exists, roll over!
             fileHandler.doRollover()
 
-        # create console handler and set level to debug
         streamHandler = logging.StreamHandler()
         streamHandler.setLevel(logging.DEBUG)
 
-        # add formatter to handler
         fileHandler.setFormatter(formatter)
         streamHandler.setFormatter(formatter)
 
-        # add handlers to logger
         self.logger.addHandler(fileHandler)
         self.logger.addHandler(streamHandler)
+        print(f"[DEBUG] After adding: {len(self.logger.handlers)} handlers", file=sys.stderr, flush=True)
+        print(f"[DEBUG] ===== End Logger.__init__() =====\n", file=sys.stderr, flush=True)
 
-        # Launch the http server allow to access the logs folder over local network
-        server_thread = threading.Thread(target=self.simpleHttpServer)
-        # Exit the server thread when the main thread terminates
-        server_thread.daemon = True
-        server_thread.start()
 
     def debug(self, msg):
         self.logger.debug(msg)
 
     def info(self, msg):
+        import sys
+        print(f"[DEBUG] info() - Logger ID: {id(self.logger)}, handlers: {len(self.logger.handlers)}, msg: {msg[:50]}", file=sys.stderr, flush=True)
         self.logger.info(msg)
 
     def warn(self, msg):
@@ -79,24 +89,3 @@ class Logger():
     def critical(self, msg):
         self.logger.critical(msg)
 
-    def handler_from(self, directory):
-        def _init(self, *args, **kwargs):
-            return http.server.SimpleHTTPRequestHandler.__init__(self, *args, directory=self.directory, **kwargs)
-        return type(f'HandlerFrom<{directory}>', (http.server.SimpleHTTPRequestHandler,),
-                    {'__init__': _init,
-                    'directory': directory})
-
-    def simpleHttpServer(self):
-        PORT = 8000
-
-        try:
-            httpd = TCPServer(("", PORT), self.handler_from("logs"), bind_and_activate=False)
-
-            if(httpd is not None):
-                self.info(f"Logger - Launch http server for logs at 192.168.1.100:{str(PORT)}")
-                httpd.allow_reuse_address = True
-                httpd.server_bind()
-                httpd.server_activate()
-                httpd.serve_forever()
-        except OSError:
-            self.logger.error("Logger - simpleHttpServer error")

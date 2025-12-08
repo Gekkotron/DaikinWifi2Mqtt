@@ -1,15 +1,19 @@
 import config
 from pyee import EventEmitter
+import threading
 
 
 def singleton(cls):
-    instance = None
+    instances = {}
+    lock = threading.Lock()
 
     def ctor(*args, **kwargs):
-        nonlocal instance
-        if not instance:
-            instance = cls(*args, **kwargs)
-        return instance
+        if cls not in instances:
+            with lock:
+                # Double-check pattern to avoid race condition
+                if cls not in instances:
+                    instances[cls] = cls(*args, **kwargs)
+        return instances[cls]
     return ctor
 
 

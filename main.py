@@ -2,14 +2,18 @@ import config
 from Logger import Logger
 from Mqtt import Mqtt
 from daikinapi import Daikin
+from HomeAssistant import HomeAssistant
 import time
 import sys
 import traceback
 
 mqtt = Mqtt()
 daikin = Daikin()
+homeAssistant = HomeAssistant(mqtt, daikin) if config.HA_DISCOVERY_ENABLED else None
 
 def app():
+    if homeAssistant:
+        homeAssistant.start()
     mqtt.connect()
     mqtt.loop_start()
     Logger().info("Main : Daikin MQTT Gateway started.")

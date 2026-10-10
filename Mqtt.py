@@ -24,11 +24,21 @@ class Mqtt:
             Logger().info(f"Mqtt : Connected mqtt sub to daikin/# {str(reasonCode)}")
         # Subscribing in on_connect() means that if we lose the connection and
         # reconnect then subscriptions will be renewed.
+        if reasonCode != 0:
+            Logger().error(f"Mqtt : Connection refused ({mqtt.connack_string(reasonCode)}), check MQTT_USERNAME / MQTT_PASSWORD")
+            return
         client.subscribe(config.MQTT_GATEWAY_BASE_TOPIC + "#")
+        client.publish(config.MQTT_GATEWAY_AVAILABILITY_TOPIC, "online", retain=True)
+        if config.HA_DISCOVERY_ENABLED:
+            # Home Assistant birth message: announce again when HA restarts
+            client.subscribe(config.HA_DISCOVERY_PREFIX + "/status")
+            Events().broker.emit(config.HA_CONNECTED)
 
     def on_message(self, client, userdata, msg):
         if(ENALE_LOGGING):
             Logger().info(f"Mqtt : on_message: {msg.topic} -> {msg.payload}")
+        if self._route_home_assistant(msg):
+            return
         try:
             payload_decoded = msg.payload.decode('utf-8')
             if not payload_decoded.strip():
@@ -50,6 +60,26 @@ class Mqtt:
         except Exception as e:
             Logger().error(f"Mqtt : Error parsing payload: {e}, raw: {msg.payload}")
 
+    def _route_home_assistant(self, msg):
+        """ Handles HA topics and the bridge's own non-JSON topics. Returns True when the message is consumed. """
+        topic_parts = msg.topic.split('/')
+        if msg.topic == config.HA_DISCOVERY_PREFIX + "/status":
+            if config.HA_DISCOVERY_ENABLED and msg.payload.decode('utf-8', 'replace').strip() == "online":
+                Events().broker.emit(config.HA_CONNECTED)
+            return True
+        if msg.topic == config.MQTT_GATEWAY_AVAILABILITY_TOPIC:
+            return True
+        # daikin/<host>/ha/state (our own state) or daikin/<host>/ha/<field>/set (command)
+        if len(topic_parts) >= 3 and topic_parts[2] == "ha":
+            if config.HA_DISCOVERY_ENABLED and len(topic_parts) == 5 and topic_parts[4] == "set":
+                Events().broker.emit(config.HA_COMMAND, {
+                    "host": topic_parts[1],
+                    "field": topic_parts[3],
+                    "value": msg.payload.decode('utf-8', 'replace'),
+                })
+            return True
+        return False
+
     def on_log(self, client, userdata, level, buf):
         if(ENALE_LOGGING):
             Logger().info(f"Mqtt : on_log: {buf}")
@@ -63,6 +93,9 @@ class Mqtt:
         def on_disconnect(client, userdata, rc):
             Logger().error(f"Mqtt : Disconnected from broker (rc={rc}). Attempting to reconnect...")
         self.client = mqtt.Client("Daikin gateway")
+        if config.MQTT_USERNAME:
+            self.client.username_pw_set(config.MQTT_USERNAME, config.MQTT_PASSWORD)
+        self.client.will_set(config.MQTT_GATEWAY_AVAILABILITY_TOPIC, "offline", retain=True)
         self.client.on_message = self.on_message
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = on_disconnect
@@ -91,10 +124,10 @@ class Mqtt:
     def update_status(self, status):
         self.publish(config.MQTT_GATEWAY_STATUS_CMD, {"status": status})
 
-    def publish_event(self, topic, payload):
+    def publish_event(self, topic, payload, retain=False):
         if self.client:
             try:
-                self.client.publish(topic, json.dumps(payload))
+                self.client.publish(topic, json.dumps(payload), retain=retain)
             except Exception as e:
                 Logger().error(f"Mqtt : Publish error: {e}")
         else:

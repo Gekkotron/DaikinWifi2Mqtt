@@ -6,6 +6,8 @@ import json
 import threading
 import requests
 
+HTTP_TIMEOUT = 10
+
 
 class Daikin:
     def __init__(self):
@@ -61,7 +63,7 @@ class Daikin:
         """ Internal function to connect to and get any information"""
         fields = {}
         try:
-            response = requests.get("http://" + host + path)
+            response = requests.get("http://" + host + path, timeout=HTTP_TIMEOUT)
             response.raise_for_status()
             if not len(response.text) > 0 or not response.text[0:4] == "ret=":
                 return None
@@ -81,7 +83,7 @@ class Daikin:
         """ Internal function to connect to and update information"""
         try:
             print("SET : " + host + path + str(data))
-            response = requests.get("http://" + host + path, data)
+            response = requests.get("http://" + host + path, data, timeout=HTTP_TIMEOUT)
             response.raise_for_status()
             return response.json
         except requests.exceptions.RequestException as e:  # This is the correct syntax
@@ -233,6 +235,15 @@ class Daikin:
             data["stemp"] = 18
             data["shum"] = 0
             print("Update to default value")
+        self._set(host, "/aircon/set_control_info", data)
+        return data
+
+    def control_update(self, host, changes):
+        """ Applies several get_control() fields at once and returns the control info sent, or None """
+        data = self._get_control(host)
+        if not data:
+            return None
+        data.update(changes)
         self._set(host, "/aircon/set_control_info", data)
         return data
 

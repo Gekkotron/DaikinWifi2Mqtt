@@ -8,6 +8,12 @@ services:
     environment:
       - MQTT_HOST=${MQTT_HOST:-192.168.1.91}
       - MQTT_PORT=${MQTT_PORT:-1883}
+      - MQTT_USERNAME=${MQTT_USERNAME:-}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-}
+      - HA_DISCOVERY_ENABLED=${HA_DISCOVERY_ENABLED:-false}
+      - HA_DISCOVERY_PREFIX=${HA_DISCOVERY_PREFIX:-homeassistant}
+      - DAIKIN_HOSTS=${DAIKIN_HOSTS:-}
+      - DAIKIN_POLL_INTERVAL=${DAIKIN_POLL_INTERVAL:-60}
     volumes:
       - ./logs:/app/logs
     network_mode: host

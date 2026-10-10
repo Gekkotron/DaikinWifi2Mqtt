@@ -49,6 +49,14 @@ docker-compose down
 
 Make sure to configure environment variables and volumes as needed in the compose file.
 
+### 3. Keeping it updated (`update.sh`)
+
+```sh
+./update.sh
+```
+
+It runs `git pull --rebase`, then rebuilds and restarts the container only when new commits arrived or the container isn't running (so it also works as a first launch, or from cron). It prunes dangling images and prints the last 30 log lines.
+
 ## Configuration
 
 Settings come from environment variables (copy `.env.example` to `.env` for Docker Compose):
